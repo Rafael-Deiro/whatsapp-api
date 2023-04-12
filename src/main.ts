@@ -50,6 +50,7 @@ function bootstrap() {
   app.use(
     (err: Error, req: Request, res: Response, next: NextFunction) => {
       if (err) {
+        logger.error(err);
         return res.status(err['status'] || 500).json(err);
       }
     },
