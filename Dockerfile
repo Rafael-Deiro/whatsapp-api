@@ -2,7 +2,7 @@ FROM node:16.19.0
 
 LABEL version="2.0.0" description="Api to control whatsapp features through http requests." 
 LABEL maintainer="Cleber Wilson" git="https://github.com/jrCleber"
-LABEL contact="suporte@codechat.rest"
+LABEL contact="contato@codechat.dev"
 
 RUN apt-get update -y
 RUN apt-get upgrade -y
@@ -36,7 +36,7 @@ ENV STORE_MESSAGE=true
 ENV STORE_CONTACTS=false
 ENV STORE_CHATS=false
 
-ENV DATABASE_ENABLED=true
+ENV DATABASE_ENABLED=false
 ENV DATABASE_CONNECTION_URI='mongodb://<USER>:<PASSWORD>@<HOST>/?authSource=admin&readPreference=primary&ssl=false&directConnection=true'
 ENV DATABASE_CONNECTION_DB_PREFIX_NAME='codechat'
 ENV DATABASE_SAVE_DATA_INSTANCE=true
@@ -46,7 +46,7 @@ ENV DATABASE_SAVE_MESSAGE_UPDATE=true
 ENV DATABASE_SAVE_DATA_CONTACTS=true
 ENV DATABASE_SAVE_DATA_CHATS=true
 
-ENV REDIS_ENABLED=true
+ENV REDIS_ENABLED=false
 ENV REDIS_URI='redis://<HOST>'
 
 ENV WEBHOOK_GLOBAL_URL='<url>'
@@ -90,4 +90,6 @@ COPY . .
 
 EXPOSE 8083
 
-CMD [ "npm", "run", "start:prod" ]
+RUN npm run build
+
+CMD [ "node", "./dist/src/main.js" ]
