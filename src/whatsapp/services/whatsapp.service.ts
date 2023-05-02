@@ -25,7 +25,7 @@ import makeWASocket, {
   WAMediaUpload,
   WAMessageUpdate,
   WASocket,
-} from '@adiwajshing/baileys';
+} from '@codechat/base';
 import {
   ConfigService,
   ConfigSessionPhone,
@@ -38,7 +38,7 @@ import {
 } from '../../config/env.config';
 import { Logger } from '../../config/logger.config';
 import { INSTANCE_DIR, ROOT_DIR } from '../../config/path.config';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import axios from 'axios';
 import { v4 } from 'uuid';
@@ -384,75 +384,77 @@ export class WAStartupService {
     }
   }
 
-  public async connectToWhatsapp(): Promise<WASocket> {
-    this.loadWebhook();
-
+  private async defineAuthState() {
     const db = this.configService.get<Database>('DATABASE');
     const redis = this.configService.get<Redis>('REDIS');
 
-    if (db.ENABLED && db.SAVE_DATA.INSTANCE) {
-      this.instance.authState = await useMultiFileAuthStateDb(this.instance.name);
+    if (redis?.ENABLED) {
+      return await useMultiFileAuthStateRedisDb(redis.URI, this.instance.name);
     }
 
-    if (redis.ENABLED && !db.SAVE_DATA.INSTANCE) {
-      this.instance.authState = await useMultiFileAuthStateRedisDb(
-        redis.URI,
-        this.instance.name,
-      );
+    if (db.SAVE_DATA.INSTANCE && db.ENABLED) {
+      return await useMultiFileAuthStateDb(this.instance.name);
     }
 
-    if (!redis.ENABLED) {
-      this.instance.authState = await useMultiFileAuthState(
-        join(INSTANCE_DIR, this.instance.name),
-      );
-    }
+    return await useMultiFileAuthState(join(INSTANCE_DIR, this.instance.name));
+  }
 
-    const { version } = await fetchLatestBaileysVersion();
-    const session = this.configService.get<ConfigSessionPhone>('CONFIG_SESSION_PHONE');
-    const browser: WABrowserDescription = [session.CLIENT, session.NAME, release()];
+  public async connectToWhatsapp(): Promise<WASocket> {
+    try {
+      this.loadWebhook();
 
-    const socketConfig: UserFacingSocketConfig = {
-      auth: this.instance.authState.state,
-      logger: P({ level: 'error' }),
-      printQRInTerminal: false,
-      browser,
-      version,
-      connectTimeoutMs: 60_000,
-      qrTimeout: 10_000,
-      emitOwnEvents: false,
-      msgRetryCounterCache: this.msgRetryCounterCache,
-      getMessage: this.getMessage as any,
-      generateHighQualityLinkPreview: true,
-      syncFullHistory: true,
-      userDevicesCache: this.userDevicesCache,
-      transactionOpts: { maxCommitRetries: 1, delayBetweenTriesMs: 10 },
-      patchMessageBeforeSending: (message) => {
-        const requiresPatch = !!(message.buttonsMessage || message.listMessage);
-        if (requiresPatch) {
-          message = {
-            editedMessage: {
-              message: {
-                messageContextInfo: {
-                  deviceListMetadataVersion: 2,
-                  deviceListMetadata: {},
+      this.instance.authState = await this.defineAuthState();
+
+      const { version } = await fetchLatestBaileysVersion();
+      const session = this.configService.get<ConfigSessionPhone>('CONFIG_SESSION_PHONE');
+      const browser: WABrowserDescription = [session.CLIENT, session.NAME, release()];
+
+      const socketConfig: UserFacingSocketConfig = {
+        auth: this.instance.authState.state,
+        logger: P({ level: 'error' }),
+        printQRInTerminal: false,
+        browser,
+        version,
+        connectTimeoutMs: 60_000,
+        qrTimeout: 10_000,
+        emitOwnEvents: false,
+        msgRetryCounterCache: this.msgRetryCounterCache,
+        getMessage: this.getMessage as any,
+        generateHighQualityLinkPreview: true,
+        syncFullHistory: true,
+        userDevicesCache: this.userDevicesCache,
+        transactionOpts: { maxCommitRetries: 1, delayBetweenTriesMs: 10 },
+        patchMessageBeforeSending: (message) => {
+          const requiresPatch = !!(message.buttonsMessage || message.listMessage);
+          if (requiresPatch) {
+            message = {
+              viewOnceMessageV2: {
+                message: {
+                  messageContextInfo: {
+                    deviceListMetadataVersion: 2,
+                    deviceListMetadata: {},
+                  },
+                  ...message,
                 },
-                ...message,
               },
-            },
-          };
-        }
+            };
+          }
 
-        return message;
-      },
-    };
+          return message;
+        },
+      };
 
-    this.endSession = false;
+      this.endSession = false;
 
-    this.client = makeWASocket(socketConfig);
+      this.client = makeWASocket(socketConfig);
 
-    this.eventHandler();
+      this.eventHandler();
 
-    return this.client;
+      return this.client;
+    } catch (error) {
+      this.logger.error(error);
+      throw new InternalServerErrorException(error?.toString());
+    }
   }
 
   private readonly chatHandle = {

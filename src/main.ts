@@ -39,11 +39,9 @@ function bootstrap() {
     compression(),
   );
 
-  if (!configService.get<Production>('PRODUCTION')) {
-    app.set('view engine', 'hbs');
-    app.set('views', join(ROOT_DIR, 'views'));
-    app.use(express.static(join(ROOT_DIR, 'public')));
-  }
+  app.set('view engine', 'hbs');
+  app.set('views', join(ROOT_DIR, 'views'));
+  app.use(express.static(join(ROOT_DIR, 'public')));
 
   app.use('/', router);
 
@@ -72,7 +70,7 @@ function bootstrap() {
   ServerUP.app = app;
   const server = ServerUP[httpServer.TYPE];
 
-  server().listen(httpServer.PORT, () =>
+  server.listen(httpServer.PORT, () =>
     logger.log(httpServer.TYPE.toUpperCase() + ' - ON: ' + httpServer.PORT),
   );
 

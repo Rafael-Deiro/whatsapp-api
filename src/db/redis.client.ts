@@ -1,16 +1,28 @@
 import { createClient, RedisClientType } from '@redis/client';
 import { Logger } from '../config/logger.config';
-import { BufferJSON } from '@adiwajshing/baileys';
+import { BufferJSON } from '@codechat/base';
 
 export class RedisCache {
-  constructor(uri: string, private instanceName: string) {
+  constructor(uri: string, private instanceName?: string) {
     this.client = createClient({ url: uri });
 
     this.client.connect();
   }
 
+  public set reference(reference: string) {
+    this.instanceName = reference;
+  }
+
   private readonly logger = new Logger(RedisCache.name);
   private client: RedisClientType;
+
+  public async instanceKeys(): Promise<string[]> {
+    try {
+      return await this.client.sendCommand(['keys', '*']);
+    } catch (error) {
+      this.logger.error(error);
+    }
+  }
 
   public async getKeys() {
     try {
